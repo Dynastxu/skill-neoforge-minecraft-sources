@@ -11,7 +11,7 @@ Principle: Read the jar as a zip stream.
 
 ## Commands
 
-Run in the project root directory (the script locates the project root by the nearest `.git`):
+Run in the project root directory (the script locates the nearest Gradle project root: a directory containing `.git` plus `settings.gradle`/`settings.gradle.kts`/`gradle.properties`; if none is found it falls back to the current directory):
 
 ```powershell
 pwsh -NoProfile -File path/to/scripts/mcsrc.ps1 <command> [arguments]

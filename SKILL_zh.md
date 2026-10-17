@@ -11,7 +11,7 @@ description: 检索 Minecraft 与 NeoForge 的反编译源码（直接流式读�
 
 ## 命令
 
-在项目根目录执行（脚本会自己按最近的 `.git` 定位项目根）：
+在项目根目录执行（脚本会自己定位最近的 Gradle 项目根：同时含 `.git` 与 `settings.gradle`/`settings.gradle.kts`/`gradle.properties` 的目录；找不到时退回当前目录）：
 
 ```powershell
 pwsh -NoProfile -File path/to/scripts/mcsrc.ps1 <命令> [参数]

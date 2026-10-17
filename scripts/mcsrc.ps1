@@ -56,21 +56,39 @@ function Get-HomeDir {
     return '.'
 }
 
+# A Gradle project root needs both a .git marker and a Gradle marker. The skill
+# itself is often installed as a git submodule under .agents/skills, so a bare
+# .git check would stop at the skill directory instead of the game project.
+function Test-ProjectRoot([string]$Dir) {
+    if (-not (Test-Path -LiteralPath (Join-Path $Dir '.git'))) { return $false }
+    foreach ($marker in @('settings.gradle', 'settings.gradle.kts', 'gradle.properties')) {
+        if (Test-Path -LiteralPath (Join-Path $Dir $marker)) { return $true }
+    }
+    return $false
+}
+
+function Find-ProjectRootUp([string]$Start) {
+    $dir = $Start
+    while ($dir) {
+        if (Test-ProjectRoot $dir) { return $dir }
+        $parent = Split-Path -Path $dir -Parent
+        if (-not $parent -or $parent -eq $dir) { break }
+        $dir = $parent
+    }
+    return $null
+}
+
 function Get-ProjectRoot {
     if ($script:Root) { return $script:Root }
     if ($ProjectRoot) {
         $script:Root = (Resolve-Path -LiteralPath $ProjectRoot).Path
         return $script:Root
     }
-    $dir = $PSScriptRoot
-    while ($dir) {
-        if (Test-Path -LiteralPath (Join-Path $dir '.git')) {
-            $script:Root = $dir
-            return $dir
-        }
-        $parent = Split-Path -Path $dir -Parent
-        if (-not $parent -or $parent -eq $dir) { break }
-        $dir = $parent
+    $hit = Find-ProjectRootUp $PSScriptRoot
+    if (-not $hit) { $hit = Find-ProjectRootUp (Get-Location).Path }
+    if ($hit) {
+        $script:Root = $hit
+        return $hit
     }
     $script:Root = (Get-Location).Path
     return $script:Root
@@ -187,7 +205,7 @@ function ConvertTo-Lines([string]$Text) {
         if ($lines.Count -eq 1) { return @() }
         $lines = @($lines[0..($lines.Count - 2)])
     }
-    return $lines
+    Write-Output -NoEnumerate $lines
 }
 
 function Get-Pattern([string]$Value) {
@@ -213,7 +231,7 @@ function Test-Prefix([string]$Name, [string]$Prefix) {
     return $Name.IndexOf('/' + $Prefix, [StringComparison]::OrdinalIgnoreCase) -ge 0
 }
 
-function Find-Matches([string]$Text, [string]$Pattern, [int]$Limit) {
+function Find-Matches([string]$Text, [string]$Pattern, [int]$Limit = [int]::MaxValue) {
     $textLines = ConvertTo-Lines $Text
     $hits = [System.Collections.Generic.List[int]]::new()
     for ($i = 0; $i -lt $textLines.Count; $i++) {
@@ -238,7 +256,7 @@ function Format-MatchGroup([string]$Name, [string[]]$TextLines, [System.Collecti
     if ($Hits.Count -eq 0) { return @() }
 
     $hitSet = [System.Collections.Generic.HashSet[int]]::new()
-    foreach ($i in $Hits) { [void]$hitSet.Add($i) }
+    foreach ($i in $Hits) { $null = $hitSet.Add($i) }
 
     $ranges = [System.Collections.Generic.List[object]]::new()
     foreach ($i in $Hits) {
@@ -258,15 +276,15 @@ function Format-MatchGroup([string]$Name, [string[]]$TextLines, [System.Collecti
     }
 
     $width = ([string]($ranges[$ranges.Count - 1].To + 1)).Length
-    $out = [System.Collections.Generic.List[string]]::new()
+    $out = @()
     $label = if ($Hits.Count -eq 1) { '1 match' } else { "$($Hits.Count) matches" }
-    $out.Add("== $Name ($label)")
+    $out += "== $Name ($label)"
     for ($r = 0; $r -lt $ranges.Count; $r++) {
-        if ($r -gt 0 -and $ContextLines -gt 0) { $out.Add('   ...') }
+        if ($r -gt 0 -and $ContextLines -gt 0) { $out += '   ...' }
         $range = $ranges[$r]
         for ($j = $range.From; $j -le $range.To; $j++) {
             $sep = if ($hitSet.Contains($j)) { ':' } else { '-' }
-            $out.Add(("{0,$width}{1} {2}" -f ($j + 1), $sep, $TextLines[$j]))
+            $out += ("{0,$width}{1} {2}" -f ($j + 1), $sep, $TextLines[$j])
         }
     }
     return $out
